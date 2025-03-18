@@ -1,0 +1,148 @@
+import { useState } from "react";
+import { QueryBuilder, formatQuery } from "react-querybuilder";
+import "react-querybuilder/dist/query-builder.css";
+import "./styles.css";
+import { initialQuery, baseFields, menHobbies, womenHobbies } from "./Fields";
+
+export const App = () => {
+  //state to store the current query structure
+  const [query, setQuery] = useState(initialQuery);
+
+  //query: 
+  // {
+  //   "combinator": "and",
+  //   "rules": [
+  //     { "field": "gender", "operator": "=", "value": "male" }
+  //   ]
+  // }
+
+  //state to store the selected gender, either "male" or "female"
+  const [selectedGender, setSelectedGender] = useState(""); //string male or female
+
+  //function that handles changes in the query builder
+  const handleQueryChange = (newQuery) => {
+
+    //newQuery :
+    // {
+    //   "combinator": "and",
+    //   "rules": [
+    //     { "field": "gender", "operator": "=", "value": "female" }
+    //   ]
+    // }
+    
+
+    // Find the rule that corresponds to the "gender" field in the query
+    const genderRuleIndex = newQuery.rules.findIndex((rule) => rule.field === "gender");
+    const genderRule = newQuery.rules[genderRuleIndex];
+
+    //{ "field": "gender", "operator": "=", "value": "male" } and undefined if no gender rule exists
+
+    //if there's no gender rule, reset selectedGender and update the query as it is
+    if (genderRuleIndex === -1) {
+      setSelectedGender("");
+      setQuery(newQuery);
+      return;
+    }
+
+    //get the selected gender value from the query
+    const newGender = genderRule.value; //string. male/female
+
+    // Always update selectedGender, even if it hasn't changed
+    setSelectedGender(newGender);
+
+    //remove any existing gender-specific nested group
+    let updatedRules = newQuery.rules.filter(
+      (rule) =>
+        !(rule.rules &&
+          (rule.rules.some((r) => r.field === "sports") ||
+           rule.rules.some((r) => r.field === "cosmetics")))
+    );
+
+    console.log(newQuery.rules);
+    console.log("Updated Rules", updatedRules);
+    
+
+    // newQuery.rules: Array<Object>
+    // [
+    //   { "field": "gender", "operator": "=", "value": "male" },
+    //   {
+    //     "combinator": "and",
+    //     "rules": [{ "field": "sports", "operator": "=", "value": "" }]
+    //   }
+    // ]
+    
+
+    //updatedRules
+    // [
+    //   { "field": "gender", "operator": "=", "value": "female" }
+    // ]
+    
+
+    //create a new nested group based on gender selection
+    let genderSpecificGroup = null;
+
+    if (newGender === "male") {
+      genderSpecificGroup = {
+        combinator: "and",
+        rules: [{ field: "sports", operator: "=", value: "" }],
+      };
+
+      //if newGender === 'male'
+      // {
+      //   "combinator": "and",
+      //   "rules": [{ "field": "sports", "operator": "=", "value": "" }]
+      // }
+      
+
+    } else if (newGender === "female") {
+      genderSpecificGroup = {
+        combinator: "and",
+        rules: [{ field: "cosmetics", operator: "=", value: "" }],
+      };
+    }
+
+    //if newGender==="female"
+    // {
+    //   "combinator": "and",
+    //   "rules": [{ "field": "cosmetics", "operator": "=", "value": "" }]
+    // }
+    
+
+    //add the new gender-specific group if applicable
+    if (genderSpecificGroup) {
+      updatedRules.splice(genderRuleIndex + 1, 0, genderSpecificGroup); // Insert right after gender rule
+    }
+
+    //update the query state with the modified rules
+    setQuery({ combinator: "and", rules: updatedRules });
+
+    console.log("Updated Query:", updatedRules);
+    console.log("New Gender:", newGender);
+  };
+
+  //dynamically determine which fields to show based on the selected gender
+  const dynamicFields = [
+    ...baseFields,
+    ...(selectedGender === "male" ? menHobbies : []), // If male, include men's hobbies
+      // [
+      //   { "name": "gender", "label": "Gender", "type": "string" },
+      //   { "name": "sports", "label": "Sports", "type": "string" }
+      // ]
+    ...(selectedGender === "female" ? womenHobbies : []), // If female, include women's hobbies
+      // [
+      //   { "name": "gender", "label": "Gender", "type": "string" },
+      //   { "name": "cosmetics", "label": "Cosmetics", "type": "string" }
+      // ]
+  ];
+
+  return (
+    <div>
+      <QueryBuilder fields={dynamicFields} query={query} onQueryChange={handleQueryChange} />
+      <h4>Query</h4>
+      <pre>
+        <code>{formatQuery(query, "json")}</code>
+      </pre>
+    </div>
+  );
+};
+
