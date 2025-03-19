@@ -3,7 +3,8 @@
     "react": "^19",
     "react-dom": "^19",
     "react-querybuilder": "8.3.1",
-    "react-querybuilder-basic-example": "file:"
+    "react-querybuilder-basic-example": "file:",
+    "uuid": "^11.1.0"
   },
   "description": "React Query Builder Basic Example",
   "devDependencies": {

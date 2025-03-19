@@ -56,6 +56,10 @@ export const menHobbies = [
       },
     ],
   },
+  {
+    name: "gym",
+    label: "Gym",
+  }
 ];
 
 export const womenHobbies = [
@@ -78,6 +82,10 @@ export const womenHobbies = [
       },
     ],
   },
+  {
+    name: "yoga",
+    label: "Yoga"
+  }
 ];
 
 export const initialQuery = {
