@@ -44,7 +44,14 @@ export const menHobbies = [
     values: [
       { 
         name: "football",
-        label: "Football" 
+        label: "Football",
+        valueEditorType: "select",
+        values: [
+          {
+            name: "american",
+            label: "American"
+          }
+        ]
       },
       { 
         name: "basketball",
@@ -59,6 +66,18 @@ export const menHobbies = [
   {
     name: "gym",
     label: "Gym",
+    valueEditorType: "select",
+    values: [
+      { 
+        name: "calisthenics",
+        label: "Calisthenics" 
+      },
+      { 
+        name: "bodybuilding",
+        label: "Bodybuilding" 
+      },
+    ],
+
   }
 ];
 
@@ -84,7 +103,18 @@ export const womenHobbies = [
   },
   {
     name: "yoga",
-    label: "Yoga"
+    label: "Yoga",
+    valueEditorType: "select",
+    values: [
+      { 
+        name: "hatha",
+        label: "Hatha" 
+      },
+      { 
+        name: "vinyasa",
+        label: "Vinyasa" 
+      },
+    ],
   }
 ];
 
@@ -95,3 +125,4 @@ export const initialQuery = {
     { field: "income", operator: "=", value: "" } 
   ],
 };
+

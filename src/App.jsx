@@ -4,106 +4,146 @@ import "react-querybuilder/dist/query-builder.css";
 import { ValueSelector, ValueEditor } from "react-querybuilder";
 import { initialQuery, baseFields, menHobbies, womenHobbies } from "./Fields";
 import { v4 as uuidv4 } from "uuid";
+import { CustomValueEditor } from "./CustomValueEditor"; 
 import { FieldSelector } from "./FieldSelector";
-import { CustomValueEditor } from "./CustomValueEditor";
 
 export const App = () => {
+  // Main query state for the QueryBuilder
   const [query, setQuery] = useState(initialQuery);
+  console.log("Shape pf Query: ",query)  
+  
+  // State to track the currently selected gender (for context)
   const [selectedGender, setSelectedGender] = useState("");
-  const [groups, setGroups] = useState([]); //track groups with UUIDs
+  
+  // State to track all groups and their relationships
+  const [groups, setGroups] = useState([]);
 
-  //handles query change and dynamically updates fields based on gender
   const handleQueryChange = (newQuery) => {
-    //newQuery.rules contains all the rules the user created
-    const genderRuleIndex = newQuery.rules.findIndex((rule) => rule.field === "gender");//index for splicing
-    const genderRule = newQuery.rules[genderRuleIndex];//look for gender rule indside newQuery.rules
-    const newGender = genderRule ? genderRule.value : "";//get's the fields value from genderRule object  
-  
-    setSelectedGender(newGender);
-  
-    if (!newGender) {
-      setQuery(newQuery);
-      return;
+    // Find gender rules in both previous and current query states
+    const previousGenderRules = query.rules.filter((rule) => rule.field === "gender");
+    const currentGenderRules = newQuery.rules.filter((rule) => rule.field === "gender");
+
+    // Update the selected gender state when gender rule changes
+    if (currentGenderRules.length > 0) {
+      const genderValue = currentGenderRules[0].value;
+      if (genderValue) {
+        setSelectedGender(genderValue);
+      }
+    } else {
+      setSelectedGender(""); // Reset if no gender rule exists
     }
-  
-    //creating shallow copy to avoid mutating unnecessarily, because it 
-    //interfeares with how rqb handles it's data structures
-    let updatedRules = [...newQuery.rules];//store updated query rules
-    let updatedGroups = [...groups];//store updated group 
-  
-    //find existing gender-specific group as groupd has rules array and combinator
-    let existingGroupIndex = updatedRules.findIndex((rule) => rule.rules && rule.combinator);
-  
-    //if the rule does exists in the group. this is to change if the selected gender is is not of the correct type
-    if (existingGroupIndex !== -1) {
-      //store the gender specific group from update rules
-      let existingGroup = updatedRules[existingGroupIndex];
-  
-      //create a new object instead of modifying state directly
-      updatedRules[existingGroupIndex] = {
-        ...existingGroup,
-        rules: existingGroup.rules.filter(
+
+    // Detect gender rules that have been deleted
+    const deletedGenderRules = previousGenderRules.filter(
+      (prevRule) => !currentGenderRules.some((currRule) => currRule.id === prevRule.id)
+    );
+
+    // Create copies of rules and groups to work with
+    let updatedRules = [...newQuery.rules];
+    let updatedGroups = [...groups];
+
+    // Remove groups and rules associated with deleted gender rules
+    deletedGenderRules.forEach((deletedRule) => {
+      // Remove rules that are children of the deleted gender rule
+      updatedRules = updatedRules.filter((rule) => rule.parentId !== deletedRule.id);
+      // Remove groups associated with the deleted gender rule
+      updatedGroups = updatedGroups.filter((group) => group.id !== deletedRule.id);
+    });
+
+    // Process each gender rule in the current query
+    currentGenderRules.forEach((genderRule) => {
+      const newGender = genderRule.value;
+      // Skip processing if no gender value is selected
+      if (!newGender) return;
+      
+      // Look for an existing group that's linked to this gender rule
+      let existingGroupIndex = updatedRules.findIndex(
+        (rule) => rule.rules && rule.combinator && rule.parentId === genderRule.id
+      );
+      
+      if (existingGroupIndex !== -1) {
+        // Update the existing gender-specific group
+        let existingGroup = updatedRules[existingGroupIndex];
+        
+        // Ensure all rules in this group have the correct parentId
+        const updatedGroupRules = existingGroup.rules.map(rule => ({
+          ...rule,
+          parentId: existingGroup.id
+        }));
+        
+        // Filter out rules that don't match the current gender
+        // (remove cosmetics fields for male and sports fields for female)
+        const filteredRules = updatedGroupRules.filter(
           (rule) =>
             (newGender === "male" && rule.field !== "cosmetics") ||
             (newGender === "female" && rule.field !== "sports")
-        ),
-      };
-  
-      //ensure the gender-specific field exists
-// Ensure the gender-specific field exists
-    const ruleExists = updatedRules[existingGroupIndex].rules.some(
-      (rule) => rule.field === (newGender === "male" ? "sports" : "cosmetics")
-    );
-
-    // If the gender-specific rule doesn’t exist, add it
-    if (!ruleExists) {
-      updatedRules[existingGroupIndex] = {
-        ...updatedRules[existingGroupIndex],
-        rules: [
-          ...updatedRules[existingGroupIndex].rules,
-          {
+        );
+        
+        // Update the group with filtered rules
+        updatedRules[existingGroupIndex] = {
+          ...existingGroup,
+          rules: filteredRules
+        };
+        
+        // Check if a default gender-specific rule exists
+        const defaultFieldName = newGender === "male" ? "sports" : "cosmetics";
+        const ruleExists = filteredRules.some(
+          (rule) => rule.field === defaultFieldName
+        );
+        
+        // Add default gender-specific rule if none exists
+        // Triggers when gender specific group exists but is missing the expected rule
+        if (!ruleExists) {
+          updatedRules[existingGroupIndex].rules.push({
             id: uuidv4(),
-            field: newGender === "male" ? "sports" : "cosmetics",
+            field: defaultFieldName,
             operator: "=",
             value: "",
-            parentId: existingGroup.id, // ✅ Correctly bind to parent group
-          },
-        ],
-      };
-    }
+            parentId: existingGroup.id
+          });
+        }
+      }
+      // If not gender soecific rule exists
+      else {
+        // Create a new gender-specific group
+        const newGroupId = uuidv4();
+        
+        // Create the new group with proper parentId reference to the gender rule
+        let genderSpecificGroup = {
+          id: newGroupId,
+          combinator: "and",
+          parentId: genderRule.id,  // Link this group to the gender rule
+          // For the parent rule
+          rules: [
+            {
+              id: uuidv4(),
+              field: newGender === "male" ? "sports" : "cosmetics",
+              operator: "=",
+              value: "",
+              parentId: newGroupId  // This rule belongs to the new group
+              // For the parent group
+            }
+          ]
+        };
+        
+        // Insert the new group right after the gender rule
+        let ruleIndex = updatedRules.findIndex((r) => r.id === genderRule.id);
+        updatedRules.splice(ruleIndex + 1, 0, genderSpecificGroup);
+        
+        // Add to groups state with parentId reference
+        updatedGroups.push({ 
+          id: newGroupId,
+          parentId: genderRule.id  // Store relationship to gender rule
+        });
+      }
+    });
 
-      //if there were not existing gender specfic group create a new one 
-    } else {
-      //create a gender-specific group with the correct `parentId`
-      const newGroupId = uuidv4();
-      const newRuleId = uuidv4();
-      
-      let genderSpecificGroup = {
-        id: newGroupId,
-        combinator: "and",
-        rules: [
-          {
-            id: newRuleId,
-            field: newGender === "male" ? "sports" : "cosmetics",
-            operator: "=",
-            value: "",
-            parentId: newGroupId, // Assign correct parent ID
-          },
-        ],
-      };
-  
-      //use splice to insert the group right after the gender rule
-      //.splice(index,0,item)
-      updatedRules.splice(genderRuleIndex + 1, 0, genderSpecificGroup);
-
-      //add the new group to updatedGroups
-      updatedGroups.push({ id: newGroupId });
-    }
-  
-    setGroups(updatedGroups);//updates the list of group
-    setQuery({ ...newQuery, rules: updatedRules });//updates the query 
+    // Update state with our modified rules and groups
+    setGroups(updatedGroups);
+    setQuery({ ...newQuery, rules: updatedRules });
   };
-  
+
+  // Render the QueryBuilder with our custom components
   return (
     <div>
       <QueryBuilder
@@ -113,7 +153,7 @@ export const App = () => {
           fieldSelector: FieldSelector,
           valueEditor: CustomValueEditor,
         }}
-        context={{ selectedGender, groups }} // Pass groups to context
+        context={{ query, groups }}  // Pass query and group state as context to child components.
       />
       <h4>Query</h4>
       <pre>
